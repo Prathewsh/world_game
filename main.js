@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
-import { OSMCity } from './osm.js';
-import { TerrainSystem } from './terrain.js';
+import { ProceduralWorld } from './world.js';
+import { WORLD_CONFIG, verticalStep } from './world-data.js';
 
 const loaderEl = document.getElementById('loader');
 const progressFillEl = document.getElementById('progress-bar-fill');
@@ -20,19 +20,16 @@ function updateProgress(percent, message) {
     }
 }
 
-THREE.DefaultLoadingManager.onLoad = function () {
-    updateProgress(100, 'World Ready!');
-};
-
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x87CEEB);
-scene.fog = new THREE.FogExp2(0x87CEEB, 0.002);
+scene.fog = new THREE.FogExp2(0x87CEEB, 0.0018);
 
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
 camera.position.set(0, 3, 5);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
@@ -56,73 +53,10 @@ dirLight.shadow.mapSize.height = 2048;
 scene.add(dirLight);
 scene.add(dirLight.target);
 
-// Center: Perinthalmanna, Malappuram, Kerala
-const CENTER_LAT = 10.9764;
-const CENTER_LNG = 76.2285;
-const METERS_PER_DEG_LNG = 111320 * Math.cos(CENTER_LAT * Math.PI / 180);
-const METERS_PER_DEG_LAT = 110540;
-
-// Terrain
-updateProgress(10, 'Loading Elevation Data...');
-const terrain = new TerrainSystem(scene, CENTER_LAT, CENTER_LNG);
-await terrain.init();
-updateProgress(35, 'Terrain Heights Loaded');
-
-// OSM City
-updateProgress(40, 'Downloading Map Data...');
-const osmCity = new OSMCity(scene, CENTER_LAT, CENTER_LNG, terrain);
-const statusEl = document.getElementById('city-status');
-
-osmCity.onProgress = (msg) => {
-    if (typeof msg === 'string') {
-        if (msg.includes('Downloading')) updateProgress(50, msg);
-        else if (msg.includes('Ready')) updateProgress(85, msg);
-        else updateProgress(70, msg);
-
-        if (statusEl) {
-            statusEl.textContent = msg;
-            if (msg.includes('Ready')) setTimeout(() => { statusEl.style.opacity = '0'; }, 2000);
-            else statusEl.style.opacity = '1';
-        }
-    }
-};
-
-await osmCity.init();
-
-// Minimap (Leaflet)
-const minimapEl = document.getElementById('minimap');
-const map = L.map(minimapEl, {
-    center: [CENTER_LAT, CENTER_LNG],
-    zoom: 16,
-    zoomControl: false,
-    attributionControl: false
-});
-
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19
-}).addTo(map);
-
-const playerIcon = L.divIcon({ className: 'player-icon', iconSize: [12, 12] });
-const playerMarker = L.marker([CENTER_LAT, CENTER_LNG], { icon: playerIcon }).addTo(map);
-
-// Teleport on map click
-map.on('click', (e) => {
-    if (!character) return;
-    const { lat, lng } = e.latlng;
-    const x = (lng - CENTER_LNG) * METERS_PER_DEG_LNG;
-    const z = -(lat - CENTER_LAT) * METERS_PER_DEG_LAT;
-    character.position.set(x, terrain.getElevation(x, z), z);
-
-    // Immediately load chunks at new location
-    osmCity.update(x, z);
-    terrain.update(x, z);
-    worldUpdateTimer = 0;
-
-    if (statusEl) {
-        statusEl.textContent = 'Teleporting...';
-        statusEl.style.opacity = '1';
-    }
-});
+updateProgress(20, 'Generating shared world…');
+const terrain = new ProceduralWorld(scene);
+document.getElementById('world-id').textContent = `Seed ${WORLD_CONFIG.seed} · Generator v${WORLD_CONFIG.version}`;
+updateProgress(70, 'Loading character…');
 
 // Character
 let character;
@@ -131,6 +65,8 @@ const clock = new THREE.Clock();
 const animations = {};
 let currentAction;
 let isJumping = false;
+let verticalVelocity = 0;
+let jumpHeld = false;
 let activeAnimName = '';
 
 const loader = new FBXLoader();
@@ -144,6 +80,8 @@ loader.load('animations/Idle.fbx', function (fbx) {
         }
     });
     scene.add(character);
+    character.position.set(WORLD_CONFIG.spawn.x, terrain.getWalkableHeight(WORLD_CONFIG.spawn.x, WORLD_CONFIG.spawn.z) + 0.02, WORLD_CONFIG.spawn.z);
+    updateProgress(100, 'Character ready');
 
     mixer = new THREE.AnimationMixer(character);
 
@@ -185,16 +123,17 @@ loader.load('animations/Idle.fbx', function (fbx) {
         animations.jump.clampWhenFinished = true;
     });
 
-    mixer.addEventListener('finished', (e) => {
-        if (e.action === animations.jump) isJumping = false;
-    });
 
-}, undefined, console.error);
+
+}, undefined, () => {
+    loaderTextEl.textContent = 'Character could not load. Check your connection and reload.';
+});
 
 // Controls
 const keys = { w: false, a: false, s: false, d: false, ArrowUp: false, ArrowLeft: false, ArrowDown: false, ArrowRight: false, Shift: false, ' ': false };
 
 window.addEventListener('keydown', (e) => {
+    if (e.target.closest('select, input, button')) return;
     const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
     if (keys.hasOwnProperty(key)) {
         keys[key] = true;
@@ -203,6 +142,7 @@ window.addEventListener('keydown', (e) => {
 });
 
 window.addEventListener('keyup', (e) => {
+    if (e.target.closest('select, input, button')) return;
     const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
     if (keys.hasOwnProperty(key)) {
         keys[key] = false;
@@ -216,16 +156,18 @@ window.addEventListener('resize', () => {
     renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
+window.addEventListener('blur', () => { for (const key of Object.keys(keys)) keys[key] = false; });
+
 // Game loop
 const speed = 5;
 const rotationSpeed = 3;
-let worldUpdateTimer = 0;
 let minimapTimer = 0;
 
 function fadeToAction(name, duration) {
     if (activeAnimName === name) return;
     const nextAction = animations[name];
-    if (nextAction) nextAction.reset().fadeIn(duration).play();
+    if (!nextAction) return;
+    nextAction.reset().fadeIn(duration).play();
     if (currentAction) currentAction.fadeOut(duration);
     currentAction = nextAction;
     activeAnimName = name;
@@ -233,7 +175,7 @@ function fadeToAction(name, duration) {
 
 function animate() {
     requestAnimationFrame(animate);
-    const delta = clock.getDelta();
+    const delta = Math.min(clock.getDelta(), 0.05);
     if (mixer) mixer.update(delta);
 
     if (character) {
@@ -246,10 +188,12 @@ function animate() {
         if (keys.s || keys.ArrowDown) { moveZ = -1; movingBackward = true; }
         if (movingForward && keys.Shift) isRunning = true;
 
-        if (keys[' '] && isRunning && !isJumping && animations.jump) {
+        if (keys[' '] && !jumpHeld && !isJumping) {
             isJumping = true;
+            verticalVelocity = 7;
             fadeToAction('jump', 0.1);
         }
+        jumpHeld = keys[' '];
 
         let rotateY = 0;
         if (keys.a || keys.ArrowLeft) rotateY = 1;
@@ -257,11 +201,17 @@ function animate() {
 
         const currentSpeed = isRunning ? speed * 2 : speed;
         character.rotation.y += rotateY * rotationSpeed * delta;
+        const previous = character.position.clone();
         character.translateZ(moveZ * currentSpeed * delta);
+        if (!terrain.canOccupy(character.position.x, character.position.z, character.position.y)) {
+            character.position.copy(previous);
+        }
 
-        // Terrain following
-        const terrainY = terrain.getElevation(character.position.x, character.position.z);
-        character.position.y = THREE.MathUtils.lerp(character.position.y, terrainY, 0.3);
+        const support = terrain.getSupportHeight(character.position.x, character.position.z, previous.y);
+        const vertical = verticalStep(previous.y, verticalVelocity, support, delta);
+        character.position.y = vertical.y;
+        verticalVelocity = vertical.velocity;
+        isJumping = !vertical.grounded;
 
         if (mixer && !isJumping) {
             if (isRunning) fadeToAction('run', 0.2);
@@ -274,22 +224,11 @@ function animate() {
         dirLight.position.set(character.position.x + 50, character.position.y + 100, character.position.z + 50);
         dirLight.target.position.copy(character.position);
 
-        // World chunk updates (throttled)
-        worldUpdateTimer += delta;
-        if (worldUpdateTimer > 2) {
-            worldUpdateTimer = 0;
-            osmCity.update(character.position.x, character.position.z);
-            terrain.update(character.position.x, character.position.z);
-        }
-
-        // Minimap update (throttled)
         minimapTimer += delta;
-        if (minimapTimer > 0.5) {
+        if (minimapTimer > 0.1) {
             minimapTimer = 0;
-            const pLat = CENTER_LAT - character.position.z / METERS_PER_DEG_LAT;
-            const pLng = CENTER_LNG + character.position.x / METERS_PER_DEG_LNG;
-            playerMarker.setLatLng([pLat, pLng]);
-            map.panTo([pLat, pLng], { animate: false });
+            terrain.updateMap(character.position.x, character.position.z, character.rotation.y);
+            document.getElementById('world-location').textContent = `X ${character.position.x.toFixed(0)} · Z ${character.position.z.toFixed(0)}`;
         }
 
         // Camera
@@ -303,8 +242,5 @@ function animate() {
     renderer.render(scene, camera);
 }
 
-// Initial world load
-osmCity.update(0, 0);
-terrain.update(0, 0);
-updateProgress(100, 'World Ready!');
+
 animate();

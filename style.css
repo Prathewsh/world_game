@@ -101,15 +101,6 @@ body {
     pointer-events: none;
 }
 
-.player-icon {
-    width: 12px;
-    height: 12px;
-    background: #ff3333;
-    border: 2px solid white;
-    border-radius: 50%;
-    box-shadow: 0 0 6px rgba(255,0,0,0.6);
-}
-
 #instructions {
     position: absolute;
     bottom: 50px;
@@ -124,17 +115,18 @@ body {
     z-index: 100;
 }
 
-#city-status {
-    position: absolute;
-    bottom: 12px;
-    left: 12px;
-    color: white;
-    font-family: sans-serif;
-    background: rgba(0, 0, 0, 0.6);
-    padding: 6px 12px;
-    border-radius: 5px;
-    font-size: 12px;
-    z-index: 100;
-    pointer-events: none;
-    transition: opacity 0.5s ease;
+#world-panel { position: absolute; right: 16px; top: 16px; z-index: 300; width: 230px; padding: 18px; border-radius: 12px; color: #ecf7f2; background: #10251ee8; font: 13px/1.6 system-ui; display: grid; gap: 8px; }
+#world-panel strong { letter-spacing: 2px; }
+#world-location { color: #abd2bd; font-size: 11px; }
+#instructions { bottom: 62px; }
+#minimap { width: 280px; height: 250px; }
+#minimap-hint { top: 270px; }
+@media (max-width: 600px) {
+ #minimap { width: 175px; height: 180px; }
+ #minimap-hint { top: 200px; }
+ #world-panel { width: 145px; padding: 10px; font-size: 11px; }
 }
+
+#minimap { width: 240px; height: 240px; }
+#minimap-hint { top: 262px; }
+@media (max-width: 600px) { #minimap { width: 160px; height: 160px; } #minimap-hint { top: 182px; } }

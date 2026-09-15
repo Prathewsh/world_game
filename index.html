@@ -3,10 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D City Explorer</title>
+    <title>Haven · Shared World</title>
     <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script type="importmap">
         {
             "imports": {
@@ -17,9 +15,15 @@
     </script>
 </head>
 <body>
+    <div id="world-panel">
+        <strong>HAVEN · SHARED WORLD</strong>
+        <span id="world-id"></span>
+        <span id="world-location">Town square</span>
+        <span>Fixed world · Local play</span>
+    </div>
     <div id="loader">
         <div class="loader-card">
-            <h1 class="loader-title">Perinthalmanna 3D</h1>
+            <h1 class="loader-title">Haven</h1>
             <div id="loader-text">Initializing 3D Environment...</div>
             <div class="progress-bar-bg">
                 <div id="progress-bar-fill"></div>
@@ -27,10 +31,9 @@
             <div id="loader-percentage">0%</div>
         </div>
     </div>
-    <div id="minimap"></div>
-    <div id="minimap-hint">Click map to teleport</div>
+    <canvas id="minimap" aria-label="World map and player position"></canvas>
+    <div id="minimap-hint">N ↑ · Town square &amp; woodland</div>
     <div id="instructions">WASD &bull; Shift+W run &bull; Space jump</div>
-    <div id="city-status">Loading city...</div>
     <script type="module" src="main.js"></script>
 </body>
 </html>
