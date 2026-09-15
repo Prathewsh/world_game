@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D City Explorer</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body>
+    <div id="loader">
+        <div class="loader-card">
+            <h1 class="loader-title">Perinthalmanna 3D</h1>
+            <div id="loader-text">Initializing 3D Environment...</div>
+            <div class="progress-bar-bg">
+                <div id="progress-bar-fill"></div>
+            </div>
+            <div id="loader-percentage">0%</div>
+        </div>
+    </div>
+    <div id="minimap"></div>
+    <div id="minimap-hint">Click map to teleport</div>
+    <div id="instructions">WASD &bull; Shift+W run &bull; Space jump</div>
+    <div id="city-status">Loading city...</div>
+    <script type="module" src="main.js"></script>
+</body>
+</html>
