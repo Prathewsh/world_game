@@ -114,6 +114,16 @@ export function supportHeight(x, z, surfaces, feetY) {
 export function verticalStep(y, velocity, support, dt) {
     const nextVelocity = velocity - 20 * dt;
     const nextY = y + nextVelocity * dt;
-    if (nextY <= support + .02 && nextVelocity <= 0) return { y: support + .02, velocity: 0, grounded: true };
+    
+    if (nextVelocity <= 0) {
+        if (nextY <= support + .02) {
+            // Normal landing or staying on ground
+            return { y: support + .02, velocity: 0, grounded: true };
+        } else if (velocity === 0 && (y - support) < 0.4) {
+            // Walking down a slope: snap to ground to prevent jitter/falling
+            return { y: support + .02, velocity: 0, grounded: true };
+        }
+    }
+    
     return { y: nextY, velocity: nextVelocity, grounded: false };
 }

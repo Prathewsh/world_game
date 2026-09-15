@@ -15,11 +15,16 @@
     </script>
 </head>
 <body>
-    <div id="world-panel">
-        <strong>HAVEN · SHARED WORLD</strong>
-        <span id="world-id"></span>
-        <span id="world-location">Town square</span>
-        <span>Fixed world · Local play</span>
+    <div id="hud-panel">
+        <div id="player-name-display">Player</div>
+        <div class="hud-bars">
+            <div class="bar-container">
+                <div class="health-bar-fill"></div>
+            </div>
+            <div class="bar-container">
+                <div class="armor-bar-fill"></div>
+            </div>
+        </div>
     </div>
     <div id="loader">
         <div class="loader-card">
@@ -34,6 +39,17 @@
     <canvas id="minimap" aria-label="World map and player position"></canvas>
     <div id="minimap-hint">N ↑ · Town square &amp; woodland</div>
     <div id="instructions">WASD &bull; Shift+W run &bull; Space jump</div>
+    
+    <div id="name-modal">
+        <div class="name-card">
+            <h2>Welcome to Haven</h2>
+            <p>Enter your player name to begin</p>
+            <input type="text" id="player-name-input" placeholder="Player Name" maxlength="15" autocomplete="off">
+            <button id="join-btn">Join World</button>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
     <script type="module" src="main.js"></script>
 </body>
 </html>

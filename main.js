@@ -1,7 +1,9 @@
 import * as THREE from 'three';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { ProceduralWorld } from './world.js';
 import { WORLD_CONFIG, verticalStep } from './world-data.js';
+import { initNetwork, broadcastState, updateRemotePlayers } from './network.js';
 
 const loaderEl = document.getElementById('loader');
 const progressFillEl = document.getElementById('progress-bar-fill');
@@ -53,9 +55,8 @@ dirLight.shadow.mapSize.height = 2048;
 scene.add(dirLight);
 scene.add(dirLight.target);
 
-updateProgress(20, 'Generating shared world…');
+    updateProgress(20, 'Generating shared world…');
 const terrain = new ProceduralWorld(scene);
-document.getElementById('world-id').textContent = `Seed ${WORLD_CONFIG.seed} · Generator v${WORLD_CONFIG.version}`;
 updateProgress(70, 'Loading character…');
 
 // Character
@@ -69,9 +70,14 @@ let verticalVelocity = 0;
 let jumpHeld = false;
 let activeAnimName = '';
 
+// Remote Player Management
+export const animClips = {};
+export let characterTemplate = null;
+
 const loader = new FBXLoader();
 loader.load('animations/Idle.fbx', function (fbx) {
     character = fbx;
+    characterTemplate = fbx; // store for cloning
     character.scale.set(0.01, 0.01, 0.01);
     character.traverse(function (object) {
         if (object.isMesh) {
@@ -86,7 +92,8 @@ loader.load('animations/Idle.fbx', function (fbx) {
     mixer = new THREE.AnimationMixer(character);
 
     if (fbx.animations.length > 0) {
-        animations.idle = mixer.clipAction(fbx.animations[0]);
+        animClips.idle = fbx.animations[0];
+        animations.idle = mixer.clipAction(animClips.idle);
         currentAction = animations.idle;
         currentAction.play();
         activeAnimName = 'idle';
@@ -96,7 +103,8 @@ loader.load('animations/Idle.fbx', function (fbx) {
 
     animLoader.load('animations/Idle.fbx', (anim) => {
         if (anim.animations.length > 0) {
-            animations.idle = mixer.clipAction(anim.animations[0]);
+            animClips.idle = anim.animations[0];
+            animations.idle = mixer.clipAction(animClips.idle);
             if (!currentAction) {
                 currentAction = animations.idle;
                 currentAction.play();
@@ -106,24 +114,26 @@ loader.load('animations/Idle.fbx', function (fbx) {
     });
 
     animLoader.load('animations/Walking.fbx', (anim) => {
-        animations.walk = mixer.clipAction(anim.animations[0]);
+        animClips.walk = anim.animations[0];
+        animations.walk = mixer.clipAction(animClips.walk);
     });
 
     animLoader.load('animations/Walking Backward.fbx', (anim) => {
-        animations.walkBack = mixer.clipAction(anim.animations[0]);
+        animClips.walkBack = anim.animations[0];
+        animations.walkBack = mixer.clipAction(animClips.walkBack);
     });
 
     animLoader.load('animations/Running.fbx', (anim) => {
-        animations.run = mixer.clipAction(anim.animations[0]);
+        animClips.run = anim.animations[0];
+        animations.run = mixer.clipAction(animClips.run);
     });
 
     animLoader.load('animations/Jump.fbx', (anim) => {
-        animations.jump = mixer.clipAction(anim.animations[0]);
+        animClips.jump = anim.animations[0];
+        animations.jump = mixer.clipAction(animClips.jump);
         animations.jump.setLoop(THREE.LoopOnce, 1);
         animations.jump.clampWhenFinished = true;
     });
-
-
 
 }, undefined, () => {
     loaderTextEl.textContent = 'Character could not load. Check your connection and reload.';
@@ -220,6 +230,19 @@ function animate() {
             else fadeToAction('idle', 0.2);
         }
 
+        // Multiplayer logic
+        if (!character.lastBroadcast || Date.now() - character.lastBroadcast > 50) {
+            let animToBroadcast = 'idle';
+            if (isJumping) animToBroadcast = 'jump';
+            else if (isRunning) animToBroadcast = 'run';
+            else if (movingForward) animToBroadcast = 'walk';
+            else if (movingBackward) animToBroadcast = 'walkBack';
+            
+            broadcastState(character.position.x, character.position.y, character.position.z, character.rotation.y, animToBroadcast);
+            character.lastBroadcast = Date.now();
+        }
+        updateRemotePlayers(delta);
+
         // Light follows player
         dirLight.position.set(character.position.x + 50, character.position.y + 100, character.position.z + 50);
         dirLight.target.position.copy(character.position);
@@ -228,7 +251,6 @@ function animate() {
         if (minimapTimer > 0.1) {
             minimapTimer = 0;
             terrain.updateMap(character.position.x, character.position.z, character.rotation.y);
-            document.getElementById('world-location').textContent = `X ${character.position.x.toFixed(0)} · Z ${character.position.z.toFixed(0)}`;
         }
 
         // Camera
@@ -244,3 +266,34 @@ function animate() {
 
 
 animate();
+
+// Name modal handling
+const nameModal = document.getElementById('name-modal');
+const nameInput = document.getElementById('player-name-input');
+const joinBtn = document.getElementById('join-btn');
+const playerNameDisplay = document.getElementById('player-name-display');
+
+function handleJoin() {
+    const name = nameInput.value.trim() || 'Player';
+    playerNameDisplay.textContent = name;
+    
+    nameModal.style.opacity = '0';
+    nameModal.style.pointerEvents = 'none';
+    setTimeout(() => {
+        nameModal.style.display = 'none';
+    }, 300);
+    // Focus game window
+    window.focus();
+    
+    // Initialize networking
+    initNetwork(scene, name);
+}
+
+if (joinBtn) {
+    joinBtn.addEventListener('click', handleJoin);
+}
+if (nameInput) {
+    nameInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') handleJoin();
+    });
+}
