@@ -29,6 +29,9 @@ scene.fog = new THREE.FogExp2(0x87CEEB, 0.0018);
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
 camera.position.set(0, 3, 5);
 
+export const audioListener = new THREE.AudioListener();
+camera.add(audioListener);
+
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -322,8 +325,16 @@ function handleJoin() {
     // Focus game window
     window.focus();
     
-    // Initialize networking
-    initNetwork(scene, name);
+    // Request mic access and init networking
+    navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+        .then(stream => {
+            initNetwork(scene, name, stream, audioListener);
+        })
+        .catch(err => {
+            console.error("Microphone access denied or error:", err);
+            // Fallback without voice chat
+            initNetwork(scene, name, null, audioListener);
+        });
 }
 
 if (joinBtn) {

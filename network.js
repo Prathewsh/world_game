@@ -10,6 +10,9 @@ const STATE_TOPIC = `${TOPIC_PREFIX}state`;
 
 let client;
 const remotePlayers = {};
+const peers = {};
+let myStream;
+let myListener;
 
 export function checkPlayerCollision(x, z, radius) {
     for (const id in remotePlayers) {
@@ -23,8 +26,11 @@ export function checkPlayerCollision(x, z, radius) {
     return false;
 }
 
-export function initNetwork(scene, name) {
+export function initNetwork(scene, name, stream = null, listener = null) {
     myName = name;
+    myStream = stream;
+    myListener = listener;
+    
     if (!window.mqtt) {
         console.error('MQTT not loaded');
         return;
@@ -34,6 +40,7 @@ export function initNetwork(scene, name) {
     client.on('connect', () => {
         console.log('Connected to multiplayer broker!');
         client.subscribe(STATE_TOPIC);
+        client.subscribe(`${TOPIC_PREFIX}signal/${localId}`);
     });
     
     client.on('message', (topic, message) => {
@@ -42,6 +49,11 @@ export function initNetwork(scene, name) {
                 const state = JSON.parse(message.toString());
                 if (state.id === localId) return; // ignore self
                 updateRemotePlayer(scene, state);
+            } catch(e) {}
+        } else if (topic === `${TOPIC_PREFIX}signal/${localId}`) {
+            try {
+                const data = JSON.parse(message.toString());
+                handleSignal(data.from, data.signal, scene);
             } catch(e) {}
         }
     });
@@ -53,9 +65,71 @@ export function initNetwork(scene, name) {
             if (now - rp.lastSeen > 5000) {
                 scene.remove(rp.model);
                 delete remotePlayers[id];
+                if (peers[id]) {
+                    peers[id].destroy();
+                    delete peers[id];
+                }
             }
         }
     }, 2000);
+}
+
+function handleSignal(remoteId, signalData, scene) {
+    let peer = peers[remoteId];
+    if (!peer && window.SimplePeer) {
+        peer = createPeer(remoteId, false, scene);
+    }
+    if (peer) {
+        peer.signal(signalData);
+    }
+}
+
+function createPeer(remoteId, initiator, scene) {
+    const peer = new window.SimplePeer({
+        initiator: initiator,
+        stream: myStream,
+        trickle: true
+    });
+    
+    peer.on('signal', data => {
+        client.publish(`${TOPIC_PREFIX}signal/${remoteId}`, JSON.stringify({
+            from: localId,
+            signal: data
+        }));
+    });
+    
+    peer.on('stream', stream => {
+        // Try to attach audio to the remote player's model
+        const attachAudio = () => {
+            const rp = remotePlayers[remoteId];
+            if (rp && myListener) {
+                if (rp.audio) return; // Already attached
+                const audio = new THREE.PositionalAudio(myListener);
+                audio.setRefDistance(2);
+                audio.setMaxDistance(50);
+                audio.setRolloffFactor(1);
+                
+                // Hack for creating MediaStreamSource
+                const audioContext = myListener.context;
+                const source = audioContext.createMediaStreamSource(stream);
+                audio.setNodeSource(source);
+                
+                rp.model.add(audio);
+                rp.audio = audio;
+            } else {
+                // If model isn't loaded yet, try again in 500ms
+                setTimeout(attachAudio, 500);
+            }
+        };
+        attachAudio();
+    });
+    
+    peer.on('close', () => {
+        delete peers[remoteId];
+    });
+    
+    peers[remoteId] = peer;
+    return peer;
 }
 
 function updateRemotePlayer(scene, state) {
@@ -122,6 +196,11 @@ function updateRemotePlayer(scene, state) {
             targetRot: parseFloat(state.r),
             lastSeen: Date.now()
         };
+        
+        // Initiate WebRTC connection if we are "greater" (prevents duplicate connections)
+        if (window.SimplePeer && myStream && localId > state.id && !peers[state.id]) {
+            createPeer(state.id, true, scene);
+        }
         
         // Immediately set position so they don't slide in from 0,0,0
         model.position.copy(remotePlayers[state.id].targetPos);
