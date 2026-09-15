@@ -5,7 +5,7 @@ import { animClips, characterTemplate } from './main.js';
 export let myName = 'Player';
 let localId = crypto.randomUUID ? crypto.randomUUID().split('-')[0] : Math.random().toString(36).substr(2, 9);
 const BROKER_URL = 'wss://test.mosquitto.org:8081';
-const TOPIC_PREFIX = 'haven_world_multi_2026/';
+const TOPIC_PREFIX = 'tomorrow_land_world_multi_2026/';
 const STATE_TOPIC = `${TOPIC_PREFIX}state`;
 
 const MAX_REMOTE_PLAYERS = 20;
