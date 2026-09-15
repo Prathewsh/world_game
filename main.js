@@ -3,7 +3,7 @@ import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { ProceduralWorld } from './world.js';
 import { WORLD_CONFIG, verticalStep } from './world-data.js';
-import { initNetwork, broadcastState, updateRemotePlayers, checkPlayerCollision } from './network.js';
+import { initNetwork, broadcastState, updateRemotePlayers, checkPlayerCollision, toggleMic } from './network.js';
 
 const loaderEl = document.getElementById('loader');
 const progressFillEl = document.getElementById('progress-bar-fill');
@@ -342,6 +342,8 @@ function handleJoin() {
     })
         .then(stream => {
             initNetwork(scene, name, stream, audioListener);
+            const micBtn = document.getElementById('mic-toggle');
+            if (micBtn) micBtn.style.display = 'flex';
         })
         .catch(err => {
             console.warn("Microphone access denied or error:", err);
@@ -367,3 +369,35 @@ if (nameInput) {
         if (e.key === 'Enter') handleJoin();
     });
 }
+
+// Mic mute/unmute toggle
+function updateMicUI(isEnabled) {
+    const btn = document.getElementById('mic-toggle');
+    const iconOn = document.getElementById('mic-icon-on');
+    const iconOff = document.getElementById('mic-icon-off');
+    if (!btn) return;
+    if (isEnabled) {
+        btn.classList.remove('muted');
+        if (iconOn) iconOn.style.display = '';
+        if (iconOff) iconOff.style.display = 'none';
+    } else {
+        btn.classList.add('muted');
+        if (iconOn) iconOn.style.display = 'none';
+        if (iconOff) iconOff.style.display = '';
+    }
+}
+
+const micBtn = document.getElementById('mic-toggle');
+if (micBtn) {
+    micBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        updateMicUI(toggleMic());
+    });
+}
+
+window.addEventListener('keydown', (e) => {
+    if (e.target.closest('input, select, button')) return;
+    if (e.key === 'm' || e.key === 'M') {
+        updateMicUI(toggleMic());
+    }
+});

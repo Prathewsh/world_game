@@ -21,6 +21,8 @@ const remotePlayers = {};
 const peers = {};
 let myStream;
 let myListener;
+let voiceEnabled = true;
+let cachedScene = null;
 
 function sanitizeName(name) {
     if (typeof name !== 'string') return 'Player';
@@ -61,6 +63,7 @@ export function initNetwork(scene, name, stream = null, listener = null) {
     myName = sanitizeName(name);
     myStream = stream;
     myListener = listener;
+    cachedScene = scene;
     
     if (!window.mqtt) {
         console.error('MQTT not loaded');
@@ -126,6 +129,7 @@ export function initNetwork(scene, name, stream = null, listener = null) {
 
 function handleSignal(remoteId, signalData, scene) {
     if (!isValidId(remoteId)) return;
+    if (!voiceEnabled) return;
     
     let peer = peers[remoteId];
     if ((!peer || peer.destroyed) && window.SimplePeer) {
@@ -314,7 +318,7 @@ function updateRemotePlayer(scene, state) {
     }
     
     // Initiate WebRTC connection if we are "greater" (deterministic to prevent collision)
-    if (window.SimplePeer && localId > state.id && !peers[state.id]) {
+    if (voiceEnabled && window.SimplePeer && localId > state.id && !peers[state.id]) {
         createPeer(state.id, true, scene);
     }
     
@@ -360,4 +364,52 @@ export function updateRemotePlayers(delta) {
         while (diff > Math.PI) diff -= Math.PI * 2;
         rp.model.rotation.y += diff * 10 * delta;
     }
+}
+
+export function toggleMic() {
+    voiceEnabled = !voiceEnabled;
+    
+    if (!voiceEnabled) {
+        // Disconnect: destroy all peers and clean up audio on remote players
+        for (const id of Object.keys(peers)) {
+            if (peers[id] && !peers[id].destroyed) {
+                peers[id].destroy();
+            }
+            delete peers[id];
+        }
+        for (const rp of Object.values(remotePlayers)) {
+            if (rp.audio) {
+                try {
+                    rp.audio.disconnect();
+                    rp.model.remove(rp.audio);
+                } catch(e) {}
+                rp.audio = null;
+            }
+            if (rp.dummyAudio) {
+                try {
+                    rp.dummyAudio.pause();
+                    rp.dummyAudio.srcObject = null;
+                } catch(e) {}
+                rp.dummyAudio = null;
+            }
+        }
+        // Disable mic tracks
+        if (myStream) {
+            myStream.getAudioTracks().forEach(t => { t.enabled = false; });
+        }
+    } else {
+        // Reconnect: re-enable mic and trigger peer creation for known players
+        if (myStream) {
+            myStream.getAudioTracks().forEach(t => { t.enabled = true; });
+        }
+        if (cachedScene && window.SimplePeer) {
+            for (const id of Object.keys(remotePlayers)) {
+                if (localId > id && !peers[id]) {
+                    createPeer(id, true, cachedScene);
+                }
+            }
+        }
+    }
+    
+    return voiceEnabled;
 }
