@@ -1,21 +1,29 @@
 # Haven
 
-A third-person procedural island with a town, woodland, hills, coastline, collision checks, and a local minimap.
+A 3D procedural multiplayer world.
 
-Run a static server from this directory, for example `python3 -m http.server 8000`, and open `http://localhost:8000`. Three.js loads from its pinned CDN version; character animations are local. No map service, geographic dataset, API key, or satellite download is used.
+**Play the game here:** [https://multiplayer-chi.vercel.app/](https://multiplayer-chi.vercel.app/)
 
-## Stable world
+## Features
 
-`world-data.js` is the shared, renderer-independent world definition. Every client uses seed **731942** and generator version **1**. Terrain, object IDs, building dimensions, tree positions, collision boundaries, and the spawn are deterministic. There is no random seed on refresh and no browser storage dependency.
+- **Multiplayer:** See and interact with other players in real-time.
+- **Proximity Voice Chat:** Talk to players near you. The audio uses a linear falloff based on your distance to other players.
+- **Voice Controls:** Mute and unmute your microphone at any time by pressing **M** or clicking the mic icon on the HUD.
+- **Procedural World:** Explore a shared island featuring a town square, woodland, hills, and a coastline.
+- **Collision & Physics:** Fully physical world where you can jump on objects, climb hills, and collide with trees and buildings.
+- **Minimap:** A real-time minimap to help you navigate the world.
+- **Animations:** Fully animated character models with walking, running, and jumping states.
+- **Dynamic Camera:** Mouse-controlled GTA-style camera with pitch control.
 
-Treat the seed and generator version as part of a saved world's identity. Preserve this generator for existing worlds; increment the version when changing layout generation. A future server should provide the seed/version, reject incompatible clients, and use the same module for world generation and collision validation.
+## Architecture
 
-## Multiplayer status
+- **Game State Synchronization:** Player positions, rotations, and animations are synchronized using an **MQTT** broker (`test.mosquitto.org`). The game state is broadcasted efficiently to all connected clients.
+- **Voice Chat (WebRTC):** Proximity voice chat is established via **WebRTC** for direct **Peer-to-Peer (P2P)** connections. The MQTT broker is used solely as a signaling server to exchange session descriptions and ICE candidates, ensuring minimal latency for voice communication once the P2P connection is established.
 
-This is currently local play. Identical map generation is implemented; networking, remote players, server-authoritative movement, and persistence of player-made world changes are not implemented. Shared edits need to be stored and synchronized by the server, independently of the base seed.
+## Controls
 
-## Controls and checks
-
-W/S move, A/D turn, Shift+W runs, and Space jumps, including from a standstill. Jump onto a bench to stand on its seat. The minimap follows your position. Buildings, tree trunks, benches, and the island boundary block movement. Bench seats support landing and standing; stepping off restores gravity.
-
-Run `node --test tests/world.test.mjs` to verify separate-client determinism, valid terrain, stable object IDs, spawn clearance, and collision boundaries.
+- **W, A, S, D** or **Arrow Keys**: Move around
+- **Mouse Move**: Look around / Rotate camera
+- **Shift + W**: Run
+- **Space**: Jump
+- **M**: Mute / Unmute Voice Chat
