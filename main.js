@@ -168,6 +168,23 @@ window.addEventListener('resize', () => {
 
 window.addEventListener('blur', () => { for (const key of Object.keys(keys)) keys[key] = false; });
 
+// Mouse Controls
+let cameraPitch = 0.2;
+
+renderer.domElement.addEventListener('click', () => {
+    if (document.pointerLockElement !== renderer.domElement) {
+        renderer.domElement.requestPointerLock();
+    }
+});
+
+document.addEventListener('mousemove', (e) => {
+    if (document.pointerLockElement === renderer.domElement && character) {
+        character.rotation.y -= e.movementX * 0.003;
+        cameraPitch += e.movementY * 0.003; // inverted up/down look
+        cameraPitch = Math.max(-0.5, Math.min(1.2, cameraPitch)); // clamp to avoid flipping
+    }
+});
+
 // Game loop
 const speed = 5;
 const rotationSpeed = 3;
@@ -198,6 +215,10 @@ function animate() {
         if (keys.s || keys.ArrowDown) { moveZ = -1; movingBackward = true; }
         if (movingForward && keys.Shift) isRunning = true;
 
+        let rotateY = 0;
+        if (keys.a || keys.ArrowLeft) rotateY = 1;
+        if (keys.d || keys.ArrowRight) rotateY = -1;
+
         if (keys[' '] && !jumpHeld && !isJumping) {
             isJumping = true;
             verticalVelocity = 7;
@@ -205,14 +226,13 @@ function animate() {
         }
         jumpHeld = keys[' '];
 
-        let rotateY = 0;
-        if (keys.a || keys.ArrowLeft) rotateY = 1;
-        if (keys.d || keys.ArrowRight) rotateY = -1;
-
         const currentSpeed = isRunning ? speed * 2 : speed;
         character.rotation.y += rotateY * rotationSpeed * delta;
+        
         const previous = character.position.clone();
+        
         character.translateZ(moveZ * currentSpeed * delta);
+        
         if (!terrain.canOccupy(character.position.x, character.position.z, character.position.y)) {
             character.position.copy(previous);
         }
@@ -253,12 +273,28 @@ function animate() {
             terrain.updateMap(character.position.x, character.position.z, character.rotation.y);
         }
 
-        // Camera
-        const cameraOffset = new THREE.Vector3(0, 2, -5);
+        // Camera - GTA style
+        const cameraDistance = 2.5; // Zoomed in closer
+        const pitchQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), cameraPitch);
+        
+        const cameraOffset = new THREE.Vector3(0, 0, -cameraDistance);
+        cameraOffset.applyQuaternion(pitchQuat);
         cameraOffset.applyQuaternion(character.quaternion);
-        cameraOffset.add(character.position);
-        camera.position.lerp(cameraOffset, 0.1);
-        camera.lookAt(character.position.x, character.position.y + 1.5, character.position.z);
+        
+        const targetPos = character.position.clone();
+        targetPos.y += 1.5;
+        
+        cameraOffset.add(targetPos);
+        
+        camera.position.lerp(cameraOffset, 0.2);
+        
+        // Prevent camera from clipping through the ground
+        const cameraGround = terrain.getSupportHeight(camera.position.x, camera.position.z, camera.position.y);
+        if (camera.position.y < cameraGround + 0.5) {
+            camera.position.y = cameraGround + 0.5;
+        }
+        
+        camera.lookAt(targetPos);
     }
 
     renderer.render(scene, camera);
