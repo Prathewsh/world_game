@@ -3,16 +3,47 @@ import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { animClips, characterTemplate } from './main.js';
 
 export let myName = 'Player';
-let localId = Math.random().toString(36).substr(2, 9);
+let localId = crypto.randomUUID ? crypto.randomUUID().split('-')[0] : Math.random().toString(36).substr(2, 9);
 const BROKER_URL = 'wss://test.mosquitto.org:8081';
 const TOPIC_PREFIX = 'haven_world_multi_2026/';
 const STATE_TOPIC = `${TOPIC_PREFIX}state`;
+
+const MAX_REMOTE_PLAYERS = 20;
+const MAX_PEERS = 10;
+const VALID_ANIMS = new Set(['idle', 'walk', 'walkBack', 'run', 'jump']);
+const COORD_LIMIT = 1000;
+const NAME_MAX_LEN = 15;
+const peerCooldowns = {};
+const PEER_COOLDOWN_MS = 3000;
 
 let client;
 const remotePlayers = {};
 const peers = {};
 let myStream;
 let myListener;
+
+function sanitizeName(name) {
+    if (typeof name !== 'string') return 'Player';
+    return name.replace(/[^\w\s\-]/g, '').substring(0, NAME_MAX_LEN).trim() || 'Player';
+}
+
+function isValidCoord(v) {
+    return typeof v === 'string' && !isNaN(v) && isFinite(parseFloat(v)) && Math.abs(parseFloat(v)) < COORD_LIMIT;
+}
+
+function isValidId(id) {
+    return typeof id === 'string' && id.length >= 4 && id.length <= 36 && /^[a-zA-Z0-9\-]+$/.test(id);
+}
+
+function validateState(state) {
+    if (!state || typeof state !== 'object') return null;
+    if (!isValidId(state.id)) return null;
+    if (!isValidCoord(state.x) || !isValidCoord(state.y) || !isValidCoord(state.z)) return null;
+    if (typeof state.r !== 'string' || isNaN(state.r)) return null;
+    if (!VALID_ANIMS.has(state.anim)) return null;
+    state.name = sanitizeName(state.name);
+    return state;
+}
 
 export function checkPlayerCollision(x, z, radius) {
     for (const id in remotePlayers) {
@@ -27,7 +58,7 @@ export function checkPlayerCollision(x, z, radius) {
 }
 
 export function initNetwork(scene, name, stream = null, listener = null) {
-    myName = name;
+    myName = sanitizeName(name);
     myStream = stream;
     myListener = listener;
     
@@ -44,15 +75,22 @@ export function initNetwork(scene, name, stream = null, listener = null) {
     });
     
     client.on('message', (topic, message) => {
+        const msgStr = message.toString();
+        if (msgStr.length > 16384) return; // reject oversized messages
+        
         if (topic === STATE_TOPIC) {
             try {
-                const state = JSON.parse(message.toString());
-                if (state.id === localId) return; // ignore self
-                updateRemotePlayer(scene, state);
+                const state = JSON.parse(msgStr);
+                if (state.id === localId) return;
+                const validated = validateState(state);
+                if (!validated) return;
+                updateRemotePlayer(scene, validated);
             } catch(e) {}
         } else if (topic === `${TOPIC_PREFIX}signal/${localId}`) {
             try {
-                const data = JSON.parse(message.toString());
+                const data = JSON.parse(msgStr);
+                if (!isValidId(data.from)) return;
+                if (!data.signal || typeof data.signal !== 'object') return;
                 handleSignal(data.from, data.signal, scene);
             } catch(e) {}
         }
@@ -63,6 +101,18 @@ export function initNetwork(scene, name, stream = null, listener = null) {
         const now = Date.now();
         for (const [id, rp] of Object.entries(remotePlayers)) {
             if (now - rp.lastSeen > 5000) {
+                if (rp.audio) {
+                    try {
+                        rp.audio.disconnect();
+                        rp.model.remove(rp.audio);
+                    } catch(e) {}
+                }
+                if (rp.dummyAudio) {
+                    try {
+                        rp.dummyAudio.pause();
+                        rp.dummyAudio.srcObject = null;
+                    } catch(e) {}
+                }
                 scene.remove(rp.model);
                 delete remotePlayers[id];
                 if (peers[id]) {
@@ -75,53 +125,115 @@ export function initNetwork(scene, name, stream = null, listener = null) {
 }
 
 function handleSignal(remoteId, signalData, scene) {
+    if (!isValidId(remoteId)) return;
+    
     let peer = peers[remoteId];
-    if (!peer && window.SimplePeer) {
+    if ((!peer || peer.destroyed) && window.SimplePeer) {
+        // Rate-limit peer creation per remote ID
+        const now = Date.now();
+        if (peerCooldowns[remoteId] && now - peerCooldowns[remoteId] < PEER_COOLDOWN_MS) return;
+        peerCooldowns[remoteId] = now;
+        
         peer = createPeer(remoteId, false, scene);
     }
-    if (peer) {
-        peer.signal(signalData);
+    if (peer && !peer.destroyed) {
+        try {
+            peer.signal(signalData);
+        } catch(e) {
+            console.warn(`[VoiceChat] Signal error`);
+        }
     }
 }
 
 function createPeer(remoteId, initiator, scene) {
-    const peer = new window.SimplePeer({
+    if (peers[remoteId] && !peers[remoteId].destroyed) {
+        return peers[remoteId];
+    }
+    
+    // Cap total peer connections
+    if (Object.keys(peers).length >= MAX_PEERS) return null;
+    
+    console.log(`[VoiceChat] Initiating peer for ${remoteId} (initiator: ${initiator})`);
+    
+    const peerOptions = {
         initiator: initiator,
-        stream: myStream,
-        trickle: true
-    });
+        trickle: false,
+        config: {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' },
+                { urls: 'stun:stun2.l.google.com:19302' }
+            ]
+        }
+    };
+    
+    if (myStream) {
+        peerOptions.stream = myStream;
+    } else {
+        peerOptions.offerConstraints = {
+            offerToReceiveAudio: true,
+            offerToReceiveVideo: false
+        };
+    }
+
+    const peer = new window.SimplePeer(peerOptions);
     
     peer.on('signal', data => {
-        client.publish(`${TOPIC_PREFIX}signal/${remoteId}`, JSON.stringify({
-            from: localId,
-            signal: data
-        }));
+        if (client && client.connected) {
+            client.publish(`${TOPIC_PREFIX}signal/${remoteId}`, JSON.stringify({
+                from: localId,
+                signal: data
+            }));
+        }
     });
     
     peer.on('stream', stream => {
-        // Try to attach audio to the remote player's model
+        console.log(`[VoiceChat] Audio stream received from ${remoteId}`);
+        
+        // Workaround for Chrome/WebKit bug: remote WebRTC streams remain silent in Web Audio API
+        // unless actively decoded by an HTMLMediaElement playing at low volume.
+        let dummyAudio;
+        try {
+            dummyAudio = new Audio();
+            dummyAudio.srcObject = stream;
+            dummyAudio.volume = 0.0001;
+            dummyAudio.play().catch(e => console.warn('[VoiceChat] Dummy audio play blocked:', e));
+        } catch(e) {
+            console.warn('[VoiceChat] Dummy audio setup error:', e);
+        }
+
+        // Attach audio to the remote player's model
         const attachAudio = () => {
             const rp = remotePlayers[remoteId];
             if (rp && myListener) {
                 if (rp.audio) return; // Already attached
+                if (dummyAudio) rp.dummyAudio = dummyAudio;
+                
                 const audio = new THREE.PositionalAudio(myListener);
-                audio.setRefDistance(2);
-                audio.setMaxDistance(50);
+                audio.setDistanceModel('linear');
+                audio.setRefDistance(5);
+                audio.setMaxDistance(60);
                 audio.setRolloffFactor(1);
                 
                 audio.setMediaStreamSource(stream);
                 
                 rp.model.add(audio);
                 rp.audio = audio;
+                console.log(`[VoiceChat] Positional audio attached to player ${remoteId}`);
             } else {
-                // If model isn't loaded yet, try again in 500ms
-                setTimeout(attachAudio, 500);
+                setTimeout(attachAudio, 300);
             }
         };
         attachAudio();
     });
     
+    peer.on('error', err => {
+        console.warn(`[VoiceChat] Peer error with ${remoteId}:`, err);
+        delete peers[remoteId];
+    });
+
     peer.on('close', () => {
+        console.log(`[VoiceChat] Peer connection closed with ${remoteId}`);
         delete peers[remoteId];
     });
     
@@ -130,9 +242,11 @@ function createPeer(remoteId, initiator, scene) {
 }
 
 function updateRemotePlayer(scene, state) {
-    if (!characterTemplate) return; // Template not loaded yet
+    if (!characterTemplate) return;
 
     if (!remotePlayers[state.id]) {
+        // Cap total remote players to prevent DoS
+        if (Object.keys(remotePlayers).length >= MAX_REMOTE_PLAYERS) return;
         // Create new player
         const model = SkeletonUtils.clone(characterTemplate);
         
@@ -194,14 +308,14 @@ function updateRemotePlayer(scene, state) {
             lastSeen: Date.now()
         };
         
-        // Initiate WebRTC connection if we are "greater" (prevents duplicate connections)
-        if (window.SimplePeer && myStream && localId > state.id && !peers[state.id]) {
-            createPeer(state.id, true, scene);
-        }
-        
         // Immediately set position so they don't slide in from 0,0,0
         model.position.copy(remotePlayers[state.id].targetPos);
         model.rotation.y = remotePlayers[state.id].targetRot;
+    }
+    
+    // Initiate WebRTC connection if we are "greater" (deterministic to prevent collision)
+    if (window.SimplePeer && localId > state.id && !peers[state.id]) {
+        createPeer(state.id, true, scene);
     }
     
     const rp = remotePlayers[state.id];
@@ -224,12 +338,12 @@ export function broadcastState(x, y, z, rotation, animName) {
     if (client && client.connected) {
         const msg = JSON.stringify({
             id: localId,
-            name: myName,
+            name: sanitizeName(myName),
             x: x.toFixed(3),
             y: y.toFixed(3),
             z: z.toFixed(3),
             r: rotation.toFixed(3),
-            anim: animName
+            anim: VALID_ANIMS.has(animName) ? animName : 'idle'
         });
         client.publish(STATE_TOPIC, msg, { qos: 0 });
     }

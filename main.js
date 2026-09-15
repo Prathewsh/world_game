@@ -314,7 +314,8 @@ const joinBtn = document.getElementById('join-btn');
 const playerNameDisplay = document.getElementById('player-name-display');
 
 function handleJoin() {
-    const name = nameInput.value.trim() || 'Player';
+    const rawName = nameInput.value.trim() || 'Player';
+    const name = rawName.replace(/[^\w\s\-]/g, '').substring(0, 15).trim() || 'Player';
     playerNameDisplay.textContent = name;
     
     // Resume AudioContext on user gesture
@@ -331,16 +332,32 @@ function handleJoin() {
     window.focus();
     
     // Request mic access and init networking
-    navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+    navigator.mediaDevices.getUserMedia({
+        audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+        },
+        video: false
+    })
         .then(stream => {
             initNetwork(scene, name, stream, audioListener);
         })
         .catch(err => {
-            console.error("Microphone access denied or error:", err);
+            console.warn("Microphone access denied or error:", err);
             // Fallback without voice chat
             initNetwork(scene, name, null, audioListener);
         });
 }
+
+// Ensure AudioContext is resumed on any user interaction
+const resumeAudio = () => {
+    if (audioListener && audioListener.context && audioListener.context.state === 'suspended') {
+        audioListener.context.resume();
+    }
+};
+window.addEventListener('click', resumeAudio);
+window.addEventListener('keydown', resumeAudio);
 
 if (joinBtn) {
     joinBtn.addEventListener('click', handleJoin);
