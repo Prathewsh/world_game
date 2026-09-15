@@ -11,6 +11,18 @@ const STATE_TOPIC = `${TOPIC_PREFIX}state`;
 let client;
 const remotePlayers = {};
 
+export function checkPlayerCollision(x, z, radius) {
+    for (const id in remotePlayers) {
+        const p = remotePlayers[id].model.position;
+        const dx = p.x - x;
+        const dz = p.z - z;
+        if (dx * dx + dz * dz < radius * radius) {
+            return true;
+        }
+    }
+    return false;
+}
+
 export function initNetwork(scene, name) {
     myName = name;
     if (!window.mqtt) {

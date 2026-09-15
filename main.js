@@ -3,7 +3,7 @@ import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { ProceduralWorld } from './world.js';
 import { WORLD_CONFIG, verticalStep } from './world-data.js';
-import { initNetwork, broadcastState, updateRemotePlayers } from './network.js';
+import { initNetwork, broadcastState, updateRemotePlayers, checkPlayerCollision } from './network.js';
 
 const loaderEl = document.getElementById('loader');
 const progressFillEl = document.getElementById('progress-bar-fill');
@@ -233,7 +233,8 @@ function animate() {
         
         character.translateZ(moveZ * currentSpeed * delta);
         
-        if (!terrain.canOccupy(character.position.x, character.position.z, character.position.y)) {
+        if (!terrain.canOccupy(character.position.x, character.position.z, character.position.y) || 
+            checkPlayerCollision(character.position.x, character.position.z, 0.6)) {
             character.position.copy(previous);
         }
 
