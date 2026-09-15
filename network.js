@@ -82,8 +82,8 @@ function updateRemotePlayer(scene, state) {
         const tex = new THREE.CanvasTexture(canvas);
         const spriteMat = new THREE.SpriteMaterial({ map: tex, depthTest: false });
         const sprite = new THREE.Sprite(spriteMat);
-        sprite.position.y = 2.2;
-        sprite.scale.set(1.5, 0.375, 1);
+        sprite.position.y = 220; // 2.2 / 0.01 (model scale)
+        sprite.scale.set(150, 37.5, 100); // (1.5, 0.375, 1) / 0.01
         sprite.renderOrder = 999;
         model.add(sprite);
         
