@@ -185,116 +185,92 @@ body {
     left: 0;
     width: 100vw;
     height: 100vh;
-    background: radial-gradient(circle at center, rgba(15, 23, 42, 0.7) 0%, rgba(2, 6, 23, 0.95) 100%);
-    backdrop-filter: blur(16px);
+    background: rgba(135, 161, 191, 0.9);
     display: flex;
     justify-content: center;
     align-items: center;
     z-index: 2000;
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: 'Press Start 2P', monospace, sans-serif;
     color: white;
-    transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: opacity 0.4s ease;
 }
 
 .name-card {
-    background: rgba(30, 41, 59, 0.6);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    padding: 48px;
-    border-radius: 24px;
+    background: #5c6773;
+    border: 6px solid #323841;
+    padding: 36px 32px;
+    border-radius: 16px;
     text-align: center;
-    box-shadow: 0 0 40px rgba(56, 189, 248, 0.15), inset 0 0 20px rgba(255, 255, 255, 0.05);
-    width: 320px;
-    backdrop-filter: blur(20px);
+    box-shadow: inset 0 6px 0 rgba(255, 255, 255, 0.15), 0 16px 24px rgba(0, 0, 0, 0.3);
+    width: 400px;
     position: relative;
-    overflow: hidden;
-}
-
-.name-card::before {
-    content: '';
-    position: absolute;
-    top: -50%;
-    left: -50%;
-    width: 200%;
-    height: 200%;
-    background: conic-gradient(from 0deg, transparent 0%, rgba(56, 189, 248, 0.2) 25%, transparent 50%);
-    animation: rotate-gradient 4s linear infinite;
-    z-index: -1;
-    pointer-events: none;
-}
-@keyframes rotate-gradient {
-    100% { transform: rotate(360deg); }
+    box-sizing: border-box;
 }
 
 .name-card h2 {
-    margin: 0 0 12px 0;
-    font-size: 32px;
-    font-weight: 800;
-    letter-spacing: -0.5px;
-    background: linear-gradient(135deg, #e0f2fe, #38bdf8, #818cf8);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+    margin: 0 0 24px 0;
+    font-size: 20px;
+    color: #fff;
+    text-shadow: 3px 3px 0 #000;
+    line-height: 1.5;
 }
 
 .name-card p {
-    color: #94a3b8;
-    margin-bottom: 32px;
-    font-size: 15px;
-    font-weight: 500;
+    color: #e2e8f0;
+    margin-bottom: 36px;
+    font-size: 10px;
+    text-shadow: 2px 2px 0 #000;
+    line-height: 1.6;
 }
 
 #player-name-input {
     width: 100%;
     box-sizing: border-box;
-    padding: 16px 20px;
-    background: rgba(15, 23, 42, 0.8);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 20px;
+    background: #4f5965;
+    border: 4px solid #2b3339;
     border-radius: 12px;
-    color: #f8fafc;
-    font-size: 16px;
-    font-weight: 600;
-    margin-bottom: 24px;
+    color: #fff;
+    font-size: 14px;
+    font-family: 'Press Start 2P', monospace;
+    margin-bottom: 30px;
     outline: none;
-    transition: all 0.3s ease;
-    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
     text-align: center;
+    box-shadow: inset 0 6px 0 rgba(0, 0, 0, 0.2), inset 0 -4px 0 rgba(255, 255, 255, 0.05);
 }
 
 #player-name-input::placeholder {
-    color: #475569;
-    font-weight: 500;
+    color: #94a3b8;
 }
 
 #player-name-input:focus {
-    border-color: #38bdf8;
-    box-shadow: 0 0 15px rgba(56, 189, 248, 0.3), inset 0 2px 4px rgba(0, 0, 0, 0.2);
-    transform: translateY(-2px);
+    border-color: #f2780c;
+    background: #414a54;
 }
 
 #join-btn {
     width: 100%;
-    padding: 16px;
-    background: linear-gradient(135deg, #0284c7, #3b82f6);
-    border: none;
-    border-radius: 12px;
+    padding: 24px;
+    background: #f2780c;
+    border: 4px solid #7c2d12;
+    border-radius: 16px;
     color: white;
-    font-size: 17px;
-    font-weight: 700;
-    letter-spacing: 0.5px;
+    font-size: 20px;
+    font-family: 'Press Start 2P', monospace;
     cursor: pointer;
-    transition: all 0.3s ease;
-    box-shadow: 0 8px 20px rgba(59, 130, 246, 0.4);
+    box-shadow: inset 0 8px 0 #fabb2e, inset 0 -8px 0 #c74a00, 0 8px 0 #1e293b;
+    text-shadow: 2px 2px 0 #000;
     text-transform: uppercase;
+    transition: transform 0.1s, box-shadow 0.1s;
 }
 
 #join-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 12px 24px rgba(59, 130, 246, 0.6);
-    background: linear-gradient(135deg, #0369a1, #2563eb);
+    background: #f98216;
 }
 
 #join-btn:active {
-    transform: translateY(1px);
-    box-shadow: 0 4px 10px rgba(59, 130, 246, 0.4);
+    transform: translateY(8px);
+    box-shadow: inset 0 4px 0 #fabb2e, inset 0 -4px 0 #c74a00, 0 0px 0 #1e293b;
 }
 
 /* Mic Toggle */
