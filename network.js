@@ -109,10 +109,7 @@ function createPeer(remoteId, initiator, scene) {
                 audio.setMaxDistance(50);
                 audio.setRolloffFactor(1);
                 
-                // Hack for creating MediaStreamSource
-                const audioContext = myListener.context;
-                const source = audioContext.createMediaStreamSource(stream);
-                audio.setNodeSource(source);
+                audio.setMediaStreamSource(stream);
                 
                 rp.model.add(audio);
                 rp.audio = audio;

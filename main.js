@@ -317,6 +317,11 @@ function handleJoin() {
     const name = nameInput.value.trim() || 'Player';
     playerNameDisplay.textContent = name;
     
+    // Resume AudioContext on user gesture
+    if (audioListener.context.state === 'suspended') {
+        audioListener.context.resume();
+    }
+    
     nameModal.style.opacity = '0';
     nameModal.style.pointerEvents = 'none';
     setTimeout(() => {
