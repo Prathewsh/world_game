@@ -20,7 +20,9 @@ A 3D procedural multiplayer world.
 
 Players can open the vehicle spawner menu to choose from a variety of vehicles. The chosen vehicle is synchronized across the multiplayer network, allowing all players to see and interact with it.
 
-![Vehicle Spawner](screen.png)
+![Main Menu](screen1.png)
+![Vehicle Spawner Menu](screen2.png)
+![Vehicle Spawned State](screen3.png)
 
 ## Architecture
 
@@ -32,6 +34,11 @@ Players can open the vehicle spawner menu to choose from a variety of vehicles. 
 - **End-to-End Encryption:** Voice chat is handled through WebRTC, which mandates encryption (DTLS/SRTP) for all peer-to-peer data and media streams, ensuring secure, private communications.
 - **Input Sanitization:** Player names and metadata are strictly sanitized on the client side before being broadcasted via MQTT to prevent XSS (Cross-Site Scripting) or injection attacks.
 - **Secure Dependencies:** External assets and libraries are loaded securely over HTTPS using strict resource integrity checks where applicable.
+
+## Safety
+
+- **Privacy First:** All processing and game rendering happens locally on your device. Nothing leaves your browser except the minimal game state required for multiplayer synchronization.
+- **No Data Collection:** We do not collect, store, or track any personal information or telemetry.
 
 ## Controls
 
