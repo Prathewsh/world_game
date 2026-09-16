@@ -14,6 +14,7 @@ A 3D procedural multiplayer world.
 - **Minimap:** A real-time minimap to help you navigate the world.
 - **Animations:** Fully animated character models with walking, running, and jumping states.
 - **Dynamic Camera:** Mouse-controlled GTA-style camera with pitch control.
+- **Vehicles:** Press **V** to open a vehicle spawner and choose from various drivable cars. Press **E** to enter and drive them around the island.
 
 ## Architecture
 
@@ -22,8 +23,10 @@ A 3D procedural multiplayer world.
 
 ## Controls
 
-- **W, A, S, D** or **Arrow Keys**: Move around
+- **W, A, S, D** or **Arrow Keys**: Move around / Drive
 - **Mouse Move**: Look around / Rotate camera
 - **Shift + W**: Run
 - **Space**: Jump
+- **V**: Open / Close Vehicle Spawner
+- **E**: Enter / Exit Vehicle
 - **M**: Mute / Unmute Voice Chat
