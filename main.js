@@ -183,14 +183,24 @@ document.querySelectorAll('.vehicle-btn').forEach(btn => {
             
             // Scale up the vehicles to match character proportions better
             vehicle.scale.set(2, 2, 2);
-            
             vehicle.traverse((child) => {
                 if (child.isMesh) {
+                    if (child.name.toLowerCase().includes('collider')) {
+                        child.visible = false;
+                        return;
+                    }
                     child.castShadow = true;
                     child.receiveShadow = true;
                     const mats = Array.isArray(child.material) ? child.material : [child.material];
                     mats.forEach(mat => {
-                        mat.side = THREE.DoubleSide;
+                        if (mat.name && mat.name.toLowerCase().includes('collider')) {
+                            child.visible = false;
+                            return;
+                        }
+                        mat.transparent = false;
+                        mat.depthWrite = true;
+                        mat.depthTest = true;
+                        mat.needsUpdate = true;
                     });
                 }
             });
@@ -204,14 +214,14 @@ document.querySelectorAll('.vehicle-btn').forEach(btn => {
             
             // Ground the vehicle immediately so it doesn't float when not driven
             const spawnY = terrain.getSupportHeight(vehicleGroup.position.x, vehicleGroup.position.z, character.position.y);
-            // Add a small offset if the car's origin is exactly at the wheels
             vehicleGroup.position.y = spawnY;
             
             scene.add(vehicleGroup);
             spawnedVehicles.push({
                 mesh: vehicleGroup,
                 velocity: 0,
-                config: vehicleConfigs[modelName] || vehicleConfigs['green_car.glb']
+                config: vehicleConfigs[modelName] || vehicleConfigs['green_car.glb'],
+                modelName: modelName
             });
         });
     });
@@ -490,7 +500,14 @@ function animate() {
             else if (movingForward) animToBroadcast = 'walk';
             else if (movingBackward) animToBroadcast = 'walkBack';
             
-            broadcastState(character.position.x, character.position.y, character.position.z, character.rotation.y, animToBroadcast);
+            broadcastState(
+                character.position.x, 
+                character.position.y, 
+                character.position.z, 
+                currentVehicle ? currentVehicle.mesh.rotation.y : character.rotation.y, 
+                animToBroadcast, 
+                currentVehicle ? currentVehicle.modelName : null
+            );
             character.lastBroadcast = Date.now();
         }
         updateRemotePlayers(delta);

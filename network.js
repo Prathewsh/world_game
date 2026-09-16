@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { animClips, characterTemplate } from './main.js';
 
 export let myName = 'Player';
@@ -24,6 +25,52 @@ let myListener;
 let voiceEnabled = true;
 let cachedScene = null;
 
+const gltfLoader = new GLTFLoader();
+const vehicleCache = {};
+
+function prepareVehicleScene(vehicleScene) {
+    vehicleScene.rotation.y = -Math.PI / 2;
+    vehicleScene.scale.set(2, 2, 2);
+    vehicleScene.traverse((child) => {
+        if (child.isMesh) {
+            if (child.name.toLowerCase().includes('collider')) {
+                child.visible = false;
+                return;
+            }
+            child.castShadow = true;
+            child.receiveShadow = true;
+            const mats = Array.isArray(child.material) ? child.material : [child.material];
+            mats.forEach(mat => {
+                if (mat.name && mat.name.toLowerCase().includes('collider')) {
+                    child.visible = false;
+                    return;
+                }
+                mat.transparent = false;
+                mat.depthWrite = true;
+                mat.depthTest = true;
+                mat.needsUpdate = true;
+            });
+        }
+    });
+}
+
+function getOrLoadVehicle(modelName, callback) {
+    if (vehicleCache[modelName]) {
+        const cloned = vehicleCache[modelName].clone(true);
+        prepareVehicleScene(cloned);
+        callback(cloned);
+        return;
+    }
+    gltfLoader.load(`models/vehicles/${modelName}`, (gltf) => {
+        const vehicle = gltf.scene;
+        prepareVehicleScene(vehicle);
+        vehicleCache[modelName] = vehicle;
+        const cloned = vehicle.clone(true);
+        prepareVehicleScene(cloned);
+        callback(cloned);
+    });
+}
+
 function sanitizeName(name) {
     if (typeof name !== 'string') return 'Player';
     return name.replace(/[^\w\s\-]/g, '').substring(0, NAME_MAX_LEN).trim() || 'Player';
@@ -43,6 +90,7 @@ function validateState(state) {
     if (!isValidCoord(state.x) || !isValidCoord(state.y) || !isValidCoord(state.z)) return null;
     if (typeof state.r !== 'string' || isNaN(state.r)) return null;
     if (!VALID_ANIMS.has(state.anim)) return null;
+    if (state.v !== undefined && state.v !== null && typeof state.v !== 'string') return null;
     state.name = sanitizeName(state.name);
     return state;
 }
@@ -305,8 +353,11 @@ function updateRemotePlayer(scene, state) {
             model,
             mixer,
             actions,
+            nameSprite: sprite,
             currentActionName: '',
             currentAction: null,
+            currentVehicleName: null,
+            vehicleMesh: null,
             targetPos: new THREE.Vector3(parseFloat(state.x), parseFloat(state.y), parseFloat(state.z)),
             targetRot: parseFloat(state.r),
             lastSeen: Date.now()
@@ -336,9 +387,43 @@ function updateRemotePlayer(scene, state) {
             rp.currentActionName = state.anim;
         }
     }
+
+    // Sync vehicle model for remote player
+    const vModelName = state.v || null;
+    if (rp.currentVehicleName !== vModelName) {
+        rp.currentVehicleName = vModelName;
+        if (vModelName) {
+            getOrLoadVehicle(vModelName, (vehGroup) => {
+                if (rp.currentVehicleName !== vModelName) return;
+                if (rp.vehicleMesh) rp.model.remove(rp.vehicleMesh);
+                rp.vehicleMesh = vehGroup;
+                rp.model.add(vehGroup);
+                
+                // Hide character mesh components inside rp.model
+                rp.model.traverse((child) => {
+                    if (child.isMesh && (!rp.vehicleMesh || !rp.vehicleMesh.getObjectById(child.id))) {
+                        child.visible = false;
+                    }
+                });
+                
+                if (rp.nameSprite) rp.nameSprite.position.y = 350;
+            });
+        } else {
+            if (rp.vehicleMesh) {
+                rp.model.remove(rp.vehicleMesh);
+                rp.vehicleMesh = null;
+            }
+            rp.model.traverse((child) => {
+                if (child.isMesh) {
+                    child.visible = true;
+                }
+            });
+            if (rp.nameSprite) rp.nameSprite.position.y = 220;
+        }
+    }
 }
 
-export function broadcastState(x, y, z, rotation, animName) {
+export function broadcastState(x, y, z, rotation, animName, vehicleModel = null) {
     if (client && client.connected) {
         const msg = JSON.stringify({
             id: localId,
@@ -347,7 +432,8 @@ export function broadcastState(x, y, z, rotation, animName) {
             y: y.toFixed(3),
             z: z.toFixed(3),
             r: rotation.toFixed(3),
-            anim: VALID_ANIMS.has(animName) ? animName : 'idle'
+            anim: VALID_ANIMS.has(animName) ? animName : 'idle',
+            v: vehicleModel || null
         });
         client.publish(STATE_TOPIC, msg, { qos: 0 });
     }
