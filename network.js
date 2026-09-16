@@ -30,7 +30,7 @@ const vehicleCache = {};
 
 function prepareVehicleScene(vehicleScene) {
     vehicleScene.rotation.y = -Math.PI / 2;
-    vehicleScene.scale.set(2, 2, 2);
+    vehicleScene.scale.set(200, 200, 200);
     vehicleScene.traverse((child) => {
         if (child.isMesh) {
             if (child.name.toLowerCase().includes('collider')) {
@@ -48,6 +48,7 @@ function prepareVehicleScene(vehicleScene) {
                 mat.transparent = false;
                 mat.depthWrite = true;
                 mat.depthTest = true;
+                if (mat.map) mat.map.needsUpdate = true;
                 mat.needsUpdate = true;
             });
         }
@@ -399,9 +400,9 @@ function updateRemotePlayer(scene, state) {
                 rp.vehicleMesh = vehGroup;
                 rp.model.add(vehGroup);
                 
-                // Hide character mesh components inside rp.model
+                // Hide character mesh components inside rp.model (keep vehicleMesh visible)
                 rp.model.traverse((child) => {
-                    if (child.isMesh && (!rp.vehicleMesh || !rp.vehicleMesh.getObjectById(child.id))) {
+                    if (child.isMesh && child !== rp.vehicleMesh && (!rp.vehicleMesh || !rp.vehicleMesh.getObjectById(child.id))) {
                         child.visible = false;
                     }
                 });
