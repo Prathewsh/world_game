@@ -188,10 +188,10 @@ document.querySelectorAll('.vehicle-btn').forEach(btn => {
                 if (child.isMesh) {
                     child.castShadow = true;
                     child.receiveShadow = true;
-                    if (child.material) {
-                        child.material.depthWrite = true;
-                        child.material.side = THREE.DoubleSide;
-                    }
+                    const mats = Array.isArray(child.material) ? child.material : [child.material];
+                    mats.forEach(mat => {
+                        mat.side = THREE.DoubleSide;
+                    });
                 }
             });
             
