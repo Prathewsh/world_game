@@ -78,7 +78,7 @@ export const animClips = {};
 export let characterTemplate = null;
 
 const loader = new FBXLoader();
-loader.load('animations/Idle.fbx', function (fbx) {
+loader.load('animations/male_character/Idle.fbx', function (fbx) {
     character = fbx;
     characterTemplate = fbx; // store for cloning
     character.scale.set(0.01, 0.01, 0.01);
@@ -104,7 +104,7 @@ loader.load('animations/Idle.fbx', function (fbx) {
 
     const animLoader = new FBXLoader();
 
-    animLoader.load('animations/Idle.fbx', (anim) => {
+    animLoader.load('animations/male_character/Idle.fbx', (anim) => {
         if (anim.animations.length > 0) {
             animClips.idle = anim.animations[0];
             animations.idle = mixer.clipAction(animClips.idle);
@@ -116,22 +116,22 @@ loader.load('animations/Idle.fbx', function (fbx) {
         }
     });
 
-    animLoader.load('animations/Walking.fbx', (anim) => {
+    animLoader.load('animations/male_character/Walking.fbx', (anim) => {
         animClips.walk = anim.animations[0];
         animations.walk = mixer.clipAction(animClips.walk);
     });
 
-    animLoader.load('animations/Walking Backward.fbx', (anim) => {
+    animLoader.load('animations/male_character/Walking Backward.fbx', (anim) => {
         animClips.walkBack = anim.animations[0];
         animations.walkBack = mixer.clipAction(animClips.walkBack);
     });
 
-    animLoader.load('animations/Running.fbx', (anim) => {
+    animLoader.load('animations/male_character/Running.fbx', (anim) => {
         animClips.run = anim.animations[0];
         animations.run = mixer.clipAction(animClips.run);
     });
 
-    animLoader.load('animations/Jump.fbx', (anim) => {
+    animLoader.load('animations/male_character/Jump.fbx', (anim) => {
         animClips.jump = anim.animations[0];
         animations.jump = mixer.clipAction(animClips.jump);
         animations.jump.setLoop(THREE.LoopOnce, 1);
