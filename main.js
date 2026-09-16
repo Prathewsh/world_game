@@ -329,6 +329,10 @@ function animate() {
     if (mixer) mixer.update(delta);
 
     if (character) {
+        let movingForward = false;
+        let movingBackward = false;
+        let isRunning = false;
+        
         if (currentVehicle) {
             const vData = currentVehicle;
             const conf = vData.config;
@@ -394,9 +398,6 @@ function animate() {
             
         } else {
             let moveZ = 0;
-            let movingForward = false;
-            let movingBackward = false;
-            let isRunning = false;
 
             if (keys.w || keys.ArrowUp) { moveZ = 1; movingForward = true; }
             if (keys.s || keys.ArrowDown) { moveZ = -1; movingBackward = true; }
