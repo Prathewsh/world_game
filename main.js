@@ -441,18 +441,7 @@ function animate() {
                 else fadeToAction('idle', 0.2);
             }
 
-            // Multiplayer logic
-            if (!character.lastBroadcast || Date.now() - character.lastBroadcast > 50) {
-                let animToBroadcast = 'idle';
-                if (isJumping) animToBroadcast = 'jump';
-                else if (isRunning) animToBroadcast = 'run';
-                else if (movingForward) animToBroadcast = 'walk';
-                else if (movingBackward) animToBroadcast = 'walkBack';
-                
-                broadcastState(character.position.x, character.position.y, character.position.z, character.rotation.y, animToBroadcast);
-                character.lastBroadcast = Date.now();
-            }
-            updateRemotePlayers(delta);
+
 
             // Light follows player
             dirLight.position.set(character.position.x + 50, character.position.y + 100, character.position.z + 50);
@@ -487,6 +476,20 @@ function animate() {
             
             camera.lookAt(targetPos);
         }
+
+        // Multiplayer logic
+        if (!character.lastBroadcast || Date.now() - character.lastBroadcast > 50) {
+            let animToBroadcast = 'idle';
+            if (currentVehicle) animToBroadcast = 'idle';
+            else if (isJumping) animToBroadcast = 'jump';
+            else if (isRunning) animToBroadcast = 'run';
+            else if (movingForward) animToBroadcast = 'walk';
+            else if (movingBackward) animToBroadcast = 'walkBack';
+            
+            broadcastState(character.position.x, character.position.y, character.position.z, character.rotation.y, animToBroadcast);
+            character.lastBroadcast = Date.now();
+        }
+        updateRemotePlayers(delta);
     }
 
     renderer.render(scene, camera);
