@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { ProceduralWorld } from './world.js';
 import { WORLD_CONFIG, verticalStep } from './world-data.js';
@@ -89,7 +90,9 @@ loader.load('animations/male_character/Idle.fbx', function (fbx) {
         }
     });
     scene.add(character);
-    character.position.set(WORLD_CONFIG.spawn.x, terrain.getWalkableHeight(WORLD_CONFIG.spawn.x, WORLD_CONFIG.spawn.z) + 0.02, WORLD_CONFIG.spawn.z);
+    const spawnX = (Math.random() - 0.5) * 200;
+    const spawnZ = (Math.random() - 0.5) * 200;
+    character.position.set(spawnX, terrain.getWalkableHeight(spawnX, spawnZ) + 0.02, spawnZ);
     updateProgress(100, 'Character ready');
 
     mixer = new THREE.AnimationMixer(character);
@@ -145,12 +148,124 @@ loader.load('animations/male_character/Idle.fbx', function (fbx) {
 // Controls
 const keys = { w: false, a: false, s: false, d: false, ArrowUp: false, ArrowLeft: false, ArrowDown: false, ArrowRight: false, Shift: false, ' ': false };
 
+// Vehicle Data
+export const spawnedVehicles = [];
+export let currentVehicle = null;
+
+const gltfLoader = new GLTFLoader();
+const vehicleConfigs = {
+    'ambulance.glb': { speed: 12, turnSpeed: 1.5, accel: 15, brake: 25 },
+    'cop_car.glb': { speed: 16, turnSpeed: 2.0, accel: 20, brake: 30 },
+    'green_car.glb': { speed: 14, turnSpeed: 1.8, accel: 18, brake: 28 },
+    'red_car.glb': { speed: 15, turnSpeed: 1.9, accel: 19, brake: 29 }
+};
+
+document.querySelectorAll('.vehicle-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        if (!character) return;
+        const modelName = btn.dataset.model;
+        const modal = document.getElementById('vehicle-modal');
+        modal.style.opacity = '0';
+        setTimeout(() => modal.style.display = 'none', 300);
+        renderer.domElement.requestPointerLock();
+        
+        gltfLoader.load(`models/vehicles/${modelName}`, (gltf) => {
+            const vehicleGroup = new THREE.Group();
+            const vehicle = gltf.scene;
+            
+            // Adjust local rotation so the model faces the correct direction (forward along Z)
+            vehicle.rotation.y = -Math.PI / 2;
+            
+            // Scale up the vehicles to match character proportions better
+            vehicle.scale.set(2, 2, 2);
+            
+            vehicle.traverse((child) => {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                    if (child.material) {
+                        child.material.alphaTest = 0.5;
+                        child.material.depthWrite = true;
+                        child.material.transparent = false;
+                        child.material.side = THREE.DoubleSide;
+                    }
+                }
+            });
+            
+            vehicleGroup.add(vehicle);
+            vehicleGroup.position.copy(character.position);
+            
+            // Move it 4 units forward in whatever direction the character is facing
+            const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(character.quaternion);
+            vehicleGroup.position.addScaledVector(forward, 4);
+            
+            // Ground the vehicle immediately so it doesn't float when not driven
+            const spawnY = terrain.getSupportHeight(vehicleGroup.position.x, vehicleGroup.position.z, character.position.y);
+            // Add a small offset if the car's origin is exactly at the wheels
+            vehicleGroup.position.y = spawnY;
+            
+            scene.add(vehicleGroup);
+            spawnedVehicles.push({
+                mesh: vehicleGroup,
+                velocity: 0,
+                config: vehicleConfigs[modelName] || vehicleConfigs['green_car.glb']
+            });
+        });
+    });
+});
+
+document.getElementById('close-vehicle-btn').addEventListener('click', () => {
+    const modal = document.getElementById('vehicle-modal');
+    modal.style.opacity = '0';
+    setTimeout(() => modal.style.display = 'none', 300);
+    renderer.domElement.requestPointerLock();
+});
+
 window.addEventListener('keydown', (e) => {
     if (e.target.closest('select, input, button')) return;
     const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
     if (keys.hasOwnProperty(key)) {
         keys[key] = true;
         e.preventDefault();
+    }
+    
+    if (key === 'v') {
+        const modal = document.getElementById('vehicle-modal');
+        if (modal.style.display === 'none' || !modal.style.display) {
+            modal.style.display = 'flex';
+            setTimeout(() => modal.style.opacity = '1', 10);
+            document.exitPointerLock();
+        } else {
+            modal.style.opacity = '0';
+            setTimeout(() => modal.style.display = 'none', 300);
+            renderer.domElement.requestPointerLock();
+        }
+    }
+    
+    if (key === 'e') {
+        if (currentVehicle) {
+            const right = new THREE.Vector3(1, 0, 0).applyQuaternion(currentVehicle.mesh.quaternion);
+            character.position.copy(currentVehicle.mesh.position).addScaledVector(right, 4);
+            character.position.y = terrain.getWalkableHeight(character.position.x, character.position.z) + 0.02;
+            character.visible = true;
+            currentVehicle = null;
+        } else if (character) {
+            let closest = null;
+            let minDist = Infinity;
+            spawnedVehicles.forEach(v => {
+                const dist = v.mesh.position.distanceTo(character.position);
+                if (dist < 4 && dist < minDist) {
+                    minDist = dist;
+                    closest = v;
+                }
+            });
+            if (closest) {
+                currentVehicle = closest;
+                character.visible = false;
+                // Move character to vehicle to keep map/sync somewhat close
+                character.position.copy(closest.mesh.position);
+            }
+        }
     }
 });
 
@@ -209,96 +324,169 @@ function animate() {
     if (mixer) mixer.update(delta);
 
     if (character) {
-        let moveZ = 0;
-        let movingForward = false;
-        let movingBackward = false;
-        let isRunning = false;
-
-        if (keys.w || keys.ArrowUp) { moveZ = 1; movingForward = true; }
-        if (keys.s || keys.ArrowDown) { moveZ = -1; movingBackward = true; }
-        if (movingForward && keys.Shift) isRunning = true;
-
-        let rotateY = 0;
-        if (keys.a || keys.ArrowLeft) rotateY = 1;
-        if (keys.d || keys.ArrowRight) rotateY = -1;
-
-        if (keys[' '] && !jumpHeld && !isJumping) {
-            isJumping = true;
-            verticalVelocity = 7;
-            fadeToAction('jump', 0.1);
-        }
-        jumpHeld = keys[' '];
-
-        const currentSpeed = isRunning ? speed * 2 : speed;
-        character.rotation.y += rotateY * rotationSpeed * delta;
-        
-        const previous = character.position.clone();
-        
-        character.translateZ(moveZ * currentSpeed * delta);
-        
-        if (!terrain.canOccupy(character.position.x, character.position.z, character.position.y) || 
-            checkPlayerCollision(character.position.x, character.position.z, 0.6)) {
-            character.position.copy(previous);
-        }
-
-        const support = terrain.getSupportHeight(character.position.x, character.position.z, previous.y);
-        const vertical = verticalStep(previous.y, verticalVelocity, support, delta);
-        character.position.y = vertical.y;
-        verticalVelocity = vertical.velocity;
-        isJumping = !vertical.grounded;
-
-        if (mixer && !isJumping) {
-            if (isRunning) fadeToAction('run', 0.2);
-            else if (movingForward) fadeToAction('walk', 0.2);
-            else if (movingBackward) fadeToAction('walkBack', 0.2);
-            else fadeToAction('idle', 0.2);
-        }
-
-        // Multiplayer logic
-        if (!character.lastBroadcast || Date.now() - character.lastBroadcast > 50) {
-            let animToBroadcast = 'idle';
-            if (isJumping) animToBroadcast = 'jump';
-            else if (isRunning) animToBroadcast = 'run';
-            else if (movingForward) animToBroadcast = 'walk';
-            else if (movingBackward) animToBroadcast = 'walkBack';
+        if (currentVehicle) {
+            const vData = currentVehicle;
+            const conf = vData.config;
+            let accel = 0;
+            if (keys.w || keys.ArrowUp) accel = conf.accel;
+            if (keys.s || keys.ArrowDown) accel = -conf.brake;
             
-            broadcastState(character.position.x, character.position.y, character.position.z, character.rotation.y, animToBroadcast);
-            character.lastBroadcast = Date.now();
-        }
-        updateRemotePlayers(delta);
+            if (accel === 0) {
+                if (vData.velocity > 0) vData.velocity = Math.max(0, vData.velocity - conf.brake * delta);
+                if (vData.velocity < 0) vData.velocity = Math.min(0, vData.velocity + conf.brake * delta);
+            }
+            
+            vData.velocity += accel * delta;
+            vData.velocity = Math.max(-conf.speed * 0.5, Math.min(conf.speed, vData.velocity));
+            
+            if (Math.abs(vData.velocity) > 0.1) {
+                let turn = 0;
+                if (keys.a || keys.ArrowLeft) turn = 1;
+                if (keys.d || keys.ArrowRight) turn = -1;
+                const turnFactor = (vData.velocity > 0 ? 1 : -1) * (Math.abs(vData.velocity) / conf.speed);
+                vData.mesh.rotation.y += turn * conf.turnSpeed * turnFactor * delta;
+            }
+            
+            const prevPos = vData.mesh.position.clone();
+            vData.mesh.translateZ(vData.velocity * delta);
+            
+            if (!terrain.canOccupy(vData.mesh.position.x, vData.mesh.position.z, vData.mesh.position.y)) {
+                vData.mesh.position.copy(prevPos);
+                vData.velocity = 0;
+            }
+            
+            vData.mesh.position.y = terrain.getSupportHeight(vData.mesh.position.x, vData.mesh.position.z, vData.mesh.position.y);
+            
+            character.position.copy(vData.mesh.position);
+            character.rotation.y = vData.mesh.rotation.y;
+            
+            dirLight.position.set(vData.mesh.position.x + 50, vData.mesh.position.y + 100, vData.mesh.position.z + 50);
+            dirLight.target.position.copy(vData.mesh.position);
+            
+            minimapTimer += delta;
+            if (minimapTimer > 0.1) {
+                minimapTimer = 0;
+                terrain.updateMap(vData.mesh.position.x, vData.mesh.position.z, vData.mesh.rotation.y);
+            }
+            
+            const cameraDistance = 5.0;
+            const pitchQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), cameraPitch);
+            
+            const cameraOffset = new THREE.Vector3(0, 0, -cameraDistance);
+            cameraOffset.applyQuaternion(pitchQuat);
+            cameraOffset.applyQuaternion(vData.mesh.quaternion);
+            
+            const targetPos = vData.mesh.position.clone();
+            targetPos.y += 1.5;
+            
+            cameraOffset.add(targetPos);
+            camera.position.lerp(cameraOffset, 0.2);
+            
+            const cameraGround = terrain.getSupportHeight(camera.position.x, camera.position.z, camera.position.y);
+            if (camera.position.y < cameraGround + 0.5) camera.position.y = cameraGround + 0.5;
+            
+            camera.lookAt(targetPos);
+            
+        } else {
+            let moveZ = 0;
+            let movingForward = false;
+            let movingBackward = false;
+            let isRunning = false;
 
-        // Light follows player
-        dirLight.position.set(character.position.x + 50, character.position.y + 100, character.position.z + 50);
-        dirLight.target.position.copy(character.position);
+            if (keys.w || keys.ArrowUp) { moveZ = 1; movingForward = true; }
+            if (keys.s || keys.ArrowDown) { moveZ = -1; movingBackward = true; }
+            if (movingForward && keys.Shift) isRunning = true;
 
-        minimapTimer += delta;
-        if (minimapTimer > 0.1) {
-            minimapTimer = 0;
-            terrain.updateMap(character.position.x, character.position.z, character.rotation.y);
-        }
+            let rotateY = 0;
+            if (keys.a || keys.ArrowLeft) rotateY = 1;
+            if (keys.d || keys.ArrowRight) rotateY = -1;
 
-        // Camera - GTA style
-        const cameraDistance = 2.5; // Zoomed in closer
-        const pitchQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), cameraPitch);
-        
-        const cameraOffset = new THREE.Vector3(0, 0, -cameraDistance);
-        cameraOffset.applyQuaternion(pitchQuat);
-        cameraOffset.applyQuaternion(character.quaternion);
-        
-        const targetPos = character.position.clone();
-        targetPos.y += 1.5;
-        
-        cameraOffset.add(targetPos);
-        
-        camera.position.lerp(cameraOffset, 0.2);
-        
-        // Prevent camera from clipping through the ground
-        const cameraGround = terrain.getSupportHeight(camera.position.x, camera.position.z, camera.position.y);
-        if (camera.position.y < cameraGround + 0.5) {
-            camera.position.y = cameraGround + 0.5;
+            if (keys[' '] && !jumpHeld && !isJumping) {
+                isJumping = true;
+                verticalVelocity = 7;
+                fadeToAction('jump', 0.1);
+            }
+            jumpHeld = keys[' '];
+
+            const currentSpeed = isRunning ? speed * 2 : speed;
+            character.rotation.y += rotateY * rotationSpeed * delta;
+            
+            const previous = character.position.clone();
+            
+            character.translateZ(moveZ * currentSpeed * delta);
+            
+            let hitVehicle = false;
+            for (const v of spawnedVehicles) {
+                if (Math.hypot(character.position.x - v.mesh.position.x, character.position.z - v.mesh.position.z) < 2.5) {
+                    hitVehicle = true;
+                    break;
+                }
+            }
+            
+            if (!terrain.canOccupy(character.position.x, character.position.z, character.position.y) || 
+                checkPlayerCollision(character.position.x, character.position.z, 0.6) || hitVehicle) {
+                character.position.copy(previous);
+            }
+
+            const support = terrain.getSupportHeight(character.position.x, character.position.z, previous.y);
+            const vertical = verticalStep(previous.y, verticalVelocity, support, delta);
+            character.position.y = vertical.y;
+            verticalVelocity = vertical.velocity;
+            isJumping = !vertical.grounded;
+
+            if (mixer && !isJumping) {
+                if (isRunning) fadeToAction('run', 0.2);
+                else if (movingForward) fadeToAction('walk', 0.2);
+                else if (movingBackward) fadeToAction('walkBack', 0.2);
+                else fadeToAction('idle', 0.2);
+            }
+
+            // Multiplayer logic
+            if (!character.lastBroadcast || Date.now() - character.lastBroadcast > 50) {
+                let animToBroadcast = 'idle';
+                if (isJumping) animToBroadcast = 'jump';
+                else if (isRunning) animToBroadcast = 'run';
+                else if (movingForward) animToBroadcast = 'walk';
+                else if (movingBackward) animToBroadcast = 'walkBack';
+                
+                broadcastState(character.position.x, character.position.y, character.position.z, character.rotation.y, animToBroadcast);
+                character.lastBroadcast = Date.now();
+            }
+            updateRemotePlayers(delta);
+
+            // Light follows player
+            dirLight.position.set(character.position.x + 50, character.position.y + 100, character.position.z + 50);
+            dirLight.target.position.copy(character.position);
+
+            minimapTimer += delta;
+            if (minimapTimer > 0.1) {
+                minimapTimer = 0;
+                terrain.updateMap(character.position.x, character.position.z, character.rotation.y);
+            }
+
+            // Camera - GTA style
+            const cameraDistance = 2.5; // Zoomed in closer
+            const pitchQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), cameraPitch);
+            
+            const cameraOffset = new THREE.Vector3(0, 0, -cameraDistance);
+            cameraOffset.applyQuaternion(pitchQuat);
+            cameraOffset.applyQuaternion(character.quaternion);
+            
+            const targetPos = character.position.clone();
+            targetPos.y += 1.5;
+            
+            cameraOffset.add(targetPos);
+            
+            camera.position.lerp(cameraOffset, 0.2);
+            
+            // Prevent camera from clipping through the ground
+            const cameraGround = terrain.getSupportHeight(camera.position.x, camera.position.z, camera.position.y);
+            if (camera.position.y < cameraGround + 0.5) {
+                camera.position.y = cameraGround + 0.5;
+            }
+            
+            camera.lookAt(targetPos);
         }
-        
-        camera.lookAt(targetPos);
     }
 
     renderer.render(scene, camera);

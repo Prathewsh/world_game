@@ -178,8 +178,8 @@ body {
 #minimap-hint { top: 262px; }
 @media (max-width: 600px) { #minimap { width: 160px; height: 160px; } #minimap-hint { top: 182px; } }
 
-/* Name Modal Styles */
-#name-modal {
+/* Modal Styles */
+#name-modal, #vehicle-modal {
     position: fixed;
     top: 0;
     left: 0;
@@ -268,9 +268,58 @@ body {
     background: #f98216;
 }
 
-#join-btn:active {
+#join-btn:active, #close-vehicle-btn:active {
     transform: translateY(8px);
     box-shadow: inset 0 4px 0 #fabb2e, inset 0 -4px 0 #c74a00, 0 0px 0 #1e293b;
+}
+
+.vehicle-options {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
+.vehicle-btn {
+    padding: 16px;
+    background: #4f5965;
+    border: 4px solid #2b3339;
+    border-radius: 12px;
+    color: #fff;
+    font-size: 14px;
+    font-family: 'Press Start 2P', monospace;
+    cursor: pointer;
+    box-shadow: inset 0 6px 0 rgba(0, 0, 0, 0.2), inset 0 -4px 0 rgba(255, 255, 255, 0.05);
+    transition: background 0.1s;
+}
+
+.vehicle-btn:hover {
+    background: #5c6773;
+    border-color: #f2780c;
+}
+
+#close-vehicle-btn {
+    width: 100%;
+    padding: 16px;
+    background: #e11d48;
+    border: 4px solid #881337;
+    border-radius: 12px;
+    color: white;
+    font-size: 16px;
+    font-family: 'Press Start 2P', monospace;
+    cursor: pointer;
+    box-shadow: inset 0 6px 0 #fb7185, inset 0 -6px 0 #be123c, 0 6px 0 #1e293b;
+    text-transform: uppercase;
+    transition: transform 0.1s, box-shadow 0.1s;
+}
+
+#close-vehicle-btn:hover {
+    background: #f43f5e;
+}
+
+#close-vehicle-btn:active {
+    transform: translateY(6px);
+    box-shadow: inset 0 3px 0 #fb7185, inset 0 -3px 0 #be123c, 0 0px 0 #1e293b;
 }
 
 /* Mic Toggle */
