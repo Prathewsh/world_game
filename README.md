@@ -16,6 +16,12 @@ A 3D procedural multiplayer world.
 - **Dynamic Camera:** Mouse-controlled GTA-style camera with pitch control.
 - **Vehicles:** Press **V** to open a vehicle spawner and choose from various drivable cars. Press **E** to enter and drive them around the island.
 
+## Vehicle Spawner & Multiplayer Integration
+
+Players can open the vehicle spawner menu to choose from a variety of vehicles. The chosen vehicle is synchronized across the multiplayer network, allowing all players to see and interact with it.
+
+![Vehicle Spawner](screen.png)
+
 ## Architecture
 
 - **Game State Synchronization:** Player positions, rotations, and animations are synchronized using an **MQTT** broker (`test.mosquitto.org`). The game state is broadcasted efficiently to all connected clients.
