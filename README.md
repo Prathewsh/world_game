@@ -21,6 +21,12 @@ A 3D procedural multiplayer world.
 - **Game State Synchronization:** Player positions, rotations, and animations are synchronized using an **MQTT** broker (`test.mosquitto.org`). The game state is broadcasted efficiently to all connected clients.
 - **Voice Chat (WebRTC):** Proximity voice chat is established via **WebRTC** for direct **Peer-to-Peer (P2P)** connections. The MQTT broker is used solely as a signaling server to exchange session descriptions and ICE candidates, ensuring minimal latency for voice communication once the P2P connection is established.
 
+## Security
+
+- **End-to-End Encryption:** Voice chat is handled through WebRTC, which mandates encryption (DTLS/SRTP) for all peer-to-peer data and media streams, ensuring secure, private communications.
+- **Input Sanitization:** Player names and metadata are strictly sanitized on the client side before being broadcasted via MQTT to prevent XSS (Cross-Site Scripting) or injection attacks.
+- **Secure Dependencies:** External assets and libraries are loaded securely over HTTPS using strict resource integrity checks where applicable.
+
 ## Controls
 
 - **W, A, S, D** or **Arrow Keys**: Move around / Drive

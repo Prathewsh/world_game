@@ -90,9 +90,14 @@ loader.load('animations/male_character/Idle.fbx', function (fbx) {
         }
     });
     scene.add(character);
-    const spawnX = (Math.random() - 0.5) * 200;
-    const spawnZ = (Math.random() - 0.5) * 200;
-    character.position.set(spawnX, terrain.getWalkableHeight(spawnX, spawnZ) + 0.02, spawnZ);
+    let spawnX, spawnZ, spawnY;
+    do {
+        spawnX = (Math.random() - 0.5) * 200;
+        spawnZ = (Math.random() - 0.5) * 200;
+        spawnY = terrain.getWalkableHeight(spawnX, spawnZ);
+    } while (!terrain.canOccupy(spawnX, spawnZ, spawnY) || spawnY < 2.0); // Ensure we're not in water or inside an object
+    
+    character.position.set(spawnX, spawnY + 0.02, spawnZ);
     updateProgress(100, 'Character ready');
 
     mixer = new THREE.AnimationMixer(character);
