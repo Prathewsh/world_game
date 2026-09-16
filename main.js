@@ -92,8 +92,8 @@ loader.load('animations/male_character/Idle.fbx', function (fbx) {
     scene.add(character);
     let spawnX, spawnZ, spawnY;
     do {
-        spawnX = (Math.random() - 0.5) * 200;
-        spawnZ = (Math.random() - 0.5) * 200;
+        spawnX = (Math.random() - 0.5) * 80;
+        spawnZ = (Math.random() - 0.5) * 80;
         spawnY = terrain.getWalkableHeight(spawnX, spawnZ);
     } while (!terrain.canOccupy(spawnX, spawnZ, spawnY) || spawnY < 2.0); // Ensure we're not in water or inside an object
     
@@ -189,9 +189,7 @@ document.querySelectorAll('.vehicle-btn').forEach(btn => {
                     child.castShadow = true;
                     child.receiveShadow = true;
                     if (child.material) {
-                        child.material.alphaTest = 0.5;
                         child.material.depthWrite = true;
-                        child.material.transparent = false;
                         child.material.side = THREE.DoubleSide;
                     }
                 }
